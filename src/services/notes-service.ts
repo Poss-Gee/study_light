@@ -1,4 +1,5 @@
 
+
 import { db } from "@/lib/firebase";
 import { Note, Subject } from "@/lib/note-store";
 import { 
@@ -10,8 +11,7 @@ import {
     writeBatch,
     updateDoc,
     query,
-    collectionGroup,
-    getDoc
+    getDoc,
 } from "firebase/firestore";
 
 
@@ -70,6 +70,23 @@ export async function getNotesForSubject(subjectId: string): Promise<Note[]> {
     }));
     return notes;
 }
+
+export async function getNoteById(subjectId: string, noteId: string): Promise<Note | null> {
+    if (!subjectId || !noteId) return null;
+    const noteDocRef = doc(db, `subjects/${subjectId}/notes`, noteId);
+    const docSnap = await getDoc(noteDocRef);
+
+    if (docSnap.exists()) {
+        return {
+            ...(docSnap.data() as Omit<Note, 'id'>),
+            id: docSnap.id,
+        };
+    }
+    
+    console.error(`Note not found: subjectId=${subjectId}, noteId=${noteId}`);
+    return null;
+}
+
 
 export async function addNote(subjectId: string, noteData: Omit<Note, 'id'>): Promise<Note> {
     const notesCollection = collection(db, `subjects/${subjectId}/notes`);
