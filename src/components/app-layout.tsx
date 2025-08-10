@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import type { ReactNode } from "react";
+import React, { type ReactNode, useState, useEffect } from "react";
 import {
   BookOpen,
   Home,
@@ -17,6 +17,8 @@ import {
   BookMarked,
   HelpCircle,
   Loader2,
+  Bell,
+  Megaphone,
 } from "lucide-react";
 
 import {
@@ -47,6 +49,11 @@ import { signOut } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
 import { getInitials } from "@/lib/utils";
 import { useRole } from "@/hooks/use-role";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { getAnnouncements, Announcement } from "@/services/announcements-service";
+import { format } from "date-fns";
+import { ScrollArea } from "./ui/scroll-area";
+import { Badge } from "./ui/badge";
 
 const studentNavItems = [
   { href: "/", label: "Dashboard", icon: Home },
@@ -62,12 +69,48 @@ const teacherNavItems = [
     { href: "/teacher/students", label: "Students", icon: Users },
 ]
 
+function AnnouncementCenter({ announcements, onOpenChange, open }: { announcements: Announcement[], open: boolean, onOpenChange: (open: boolean) => void }) {
+    return (
+        <Sheet open={open} onOpenChange={onOpenChange}>
+            <SheetContent className="w-[400px] sm:w-[540px]">
+                <SheetHeader>
+                    <SheetTitle>Announcements</SheetTitle>
+                </SheetHeader>
+                <ScrollArea className="h-[calc(100%-4rem)] pr-6">
+                    <div className="space-y-6 py-6">
+                        {announcements.map((announcement) => (
+                            <div key={announcement.id} className="flex flex-col gap-1.5 p-4 rounded-lg bg-muted/50">
+                                <p className="font-semibold">{announcement.title}</p>
+                                <p className="text-sm text-muted-foreground">{announcement.content}</p>
+                                <div className="text-xs text-muted-foreground/80 mt-2 flex justify-between items-center">
+                                    <span>by {announcement.authorName}</span>
+                                    <span>{format(announcement.createdAt.toDate(), "MMM d, yyyy 'at' p")}</span>
+                                </div>
+                            </div>
+                        ))}
+                         {announcements.length === 0 && (
+                            <div className="text-center text-muted-foreground pt-12">
+                                <p>No announcements yet.</p>
+                            </div>
+                         )}
+                    </div>
+                </ScrollArea>
+            </SheetContent>
+        </Sheet>
+    )
+}
+
 export function AppLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, loading: isAuthLoading } = useAuth();
   const { role, isLoading: isRoleLoading } = useRole();
   const router = useRouter();
   const { toast } = useToast();
+  
+  const [isAnnouncementCenterOpen, setIsAnnouncementCenterOpen] = useState(false);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [hasUnread, setHasUnread] = useState(false);
+
 
   const handleLogout = async () => {
     try {
@@ -79,9 +122,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
     }
   }
 
-  if (isRoleLoading) {
+  if (isAuthLoading || (user && isRoleLoading)) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-screen bg-background">
         <Loader2 className="w-12 h-12 animate-spin text-primary" />
       </div>
     );
@@ -143,9 +186,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
-        <header className="flex h-14 items-center justify-between border-b bg-background px-4 sm:justify-end">
+        <header className="flex h-14 items-center justify-between border-b bg-background px-4 sm:justify-end gap-4">
           <SidebarTrigger className="sm:hidden" />
-          <UserNav name={userName} email={userEmail} profileUrl={profileUrl} settingsUrl={settingsUrl} onLogout={handleLogout} />
+          <div className="flex items-center gap-4">
+            <UserNav name={userName} email={userEmail} profileUrl={profileUrl} settingsUrl={settingsUrl} onLogout={handleLogout} />
+          </div>
         </header>
         <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
             {children}
@@ -202,3 +247,5 @@ function UserNav({name, email, profileUrl, settingsUrl, onLogout}: {name: string
     </DropdownMenu>
   );
 }
+
+    

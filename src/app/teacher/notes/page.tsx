@@ -14,6 +14,23 @@ import { addSubject, deleteSubject, addNote, updateNote, deleteNote, getSubjects
 import { Eye, PlusCircle, Trash2, Edit, Loader2, BrainCircuit } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { GenerateNoteDialog } from "@/components/generate-note-dialog";
+import Link from "next/link";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+
+type DeletingNote = {
+    subjectId: string;
+    noteId: string;
+} | null;
+
 
 export default function TeacherNotesPage() {
     const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -22,11 +39,12 @@ export default function TeacherNotesPage() {
 
     const [isSubjectDialogOpen, setIsSubjectDialogOpen] = useState(false);
     const [isNoteDialogOpen, setIsNoteDialogOpen] = useState(false);
-    const [isViewNoteDialogOpen, setIsViewNoteDialogOpen] = useState(false);
     const [isAiNoteDialogOpen, setIsAiNoteDialogOpen] = useState(false);
+    
+    const [deletingNote, setDeletingNote] = useState<DeletingNote>(null);
+
 
     const [editingNote, setEditingNote] = useState<Note | null>(null);
-    const [viewingNote, setViewingNote] = useState<Note | null>(null);
     const [activeSubjectId, setActiveSubjectId] = useState<string | null>(null);
 
     const fetchSubjects = useCallback(async () => {
@@ -84,11 +102,6 @@ export default function TeacherNotesPage() {
         setActiveSubjectId(subjectId);
         setIsAiNoteDialogOpen(true);
     }
-
-    const openViewNoteDialog = (note: Note) => {
-        setViewingNote(note);
-        setIsViewNoteDialogOpen(true);
-    }
     
     const handleSaveNote = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -116,16 +129,18 @@ export default function TeacherNotesPage() {
         }
     }
 
-    const handleDeleteNoteFromDialog = async (subjectId: string, noteId: string) => {
-       if(confirm("Are you sure you want to delete this note?")){
-            try {
-                await deleteNote(subjectId, noteId);
-                toast({ title: "Success", description: "Note deleted." });
-                fetchSubjects(); // Re-fetch
-            } catch (error) {
-                toast({ variant: "destructive", title: "Error", description: "Could not delete note." });
-            }
-       }
+    const handleDeleteNote = async () => {
+        if (!deletingNote) return;
+        
+        try {
+            await deleteNote(deletingNote.subjectId, deletingNote.noteId);
+            toast({ title: "Success", description: "Note deleted." });
+            fetchSubjects(); // Re-fetch
+        } catch (error) {
+            toast({ variant: "destructive", title: "Error", description: "Could not delete note." });
+        } finally {
+            setDeletingNote(null); // Close dialog
+        }
     }
     
      const handleNoteGenerated = () => {
@@ -218,13 +233,15 @@ export default function TeacherNotesPage() {
                                                             <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{note.content}</p>
                                                         </div>
                                                         <div className="flex gap-2 shrink-0 ml-4">
-                                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openViewNoteDialog(note)}>
-                                                                <Eye className="h-4 w-4"/>
-                                                            </Button>
+                                                            <Link href={`/notes/${note.id}?subjectId=${subject.id}`} passHref>
+                                                                <Button asChild variant="ghost" size="icon" className="h-8 w-8">
+                                                                    <Eye className="h-4 w-4"/>
+                                                                </Button>
+                                                            </Link>
                                                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openNoteDialog(subject.id, note)}>
                                                                 <Edit className="h-4 w-4"/>
                                                             </Button>
-                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDeleteNoteFromDialog(subject.id, note.id)}>
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeletingNote({ subjectId: subject.id, noteId: note.id })}>
                                                                 <Trash2 className="h-4 w-4"/>
                                                             </Button>
                                                         </div>
@@ -272,26 +289,24 @@ export default function TeacherNotesPage() {
                     </form>
                 </DialogContent>
             </Dialog>
+            
+            {/* Delete Confirmation Dialog */}
+             <AlertDialog open={!!deletingNote} onOpenChange={(open) => !open && setDeletingNote(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete the note.
+                    </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                    <AlertDialogCancel onClick={() => setDeletingNote(null)}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDeleteNote}>Continue</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
-             {/* View Note Dialog */}
-            <Dialog open={isViewNoteDialogOpen} onOpenChange={setIsViewNoteDialogOpen}>
-                <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                        <DialogTitle>{viewingNote?.title}</DialogTitle>
-                        <DialogDescription>
-                            Read the full content of the note below.
-                        </DialogDescription>
-                    </DialogHeader>
-                     <div className="py-4 prose dark:prose-invert max-h-[60vh] overflow-y-auto">
-                        <p>{viewingNote?.content}</p>
-                     </div>
-                    <DialogFooter>
-                        <DialogClose asChild>
-                            <Button>Close</Button>
-                        </DialogClose>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+
         </AppLayout>
     );
 }
